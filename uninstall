@@ -62,9 +62,9 @@ if [ -f "${INSTALL_PATH}/strategy/1-ubuntu-zenity" ]; then
     echo "  ✓ Removed: ${INSTALL_PATH}/strategy/1-ubuntu-zenity"
 fi
 
-if [ -f "${INSTALL_PATH}/strategy/2-ubuntu-terminal" ]; then
-    rm "${INSTALL_PATH}/strategy/2-ubuntu-terminal"
-    echo "  ✓ Removed: ${INSTALL_PATH}/strategy/2-ubuntu-terminal"
+if [ -f "${INSTALL_PATH}/strategy/2-universal-terminal" ]; then
+    rm "${INSTALL_PATH}/strategy/2-universal-terminal"
+    echo "  ✓ Removed: ${INSTALL_PATH}/strategy/2-universal-terminal"
 fi
 
 # Clean up empty directories

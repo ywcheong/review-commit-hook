@@ -1,0 +1,113 @@
+#!/bin/bash
+# 2-universal-terminal
+# Universal GUI Terminal strategy - tries multiple terminals
+
+# Check if GUI environment exists
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+    exit 2  # UNAVAILABLE
+fi
+
+# Get git info
+PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel)" 2>/dev/null || echo "Unknown Project")
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "Unknown Branch")
+STAGED_COUNT=$(git diff --staged --name-only 2>/dev/null | wc -l)
+
+# Create temp file for response
+RESPONSE_FILE=$(mktemp)
+
+# Build the list of staged files
+STAGED_FILES_LIST=$(git diff --staged --name-only 2>/dev/null | head -20 | sed 's/^/    - /')
+if [ "$STAGED_COUNT" -gt 20 ]; then
+    STAGED_FILES_LIST="${STAGED_FILES_LIST}
+    ... and $((STAGED_COUNT - 20)) more files"
+fi
+
+# Create the prompt script that will run in the new terminal
+PROMPT_SCRIPT=$(cat <<INNER_EOF
+echo ""
+echo "=========================================="
+echo "       COMMIT REVIEW REQUEST"
+echo "=========================================="
+echo ""
+echo "  Project: ${PROJECT_NAME}"
+echo "  Branch:  ${BRANCH_NAME}"
+echo "  Staged:  ${STAGED_COUNT} file(s)"
+echo ""
+echo "  Files to be committed:"
+echo "${STAGED_FILES_LIST}"
+echo ""
+echo "=========================================="
+echo ""
+read -p "Approve this commit? [y/N]: " response
+echo "\$response" > "${RESPONSE_FILE}"
+sleep 1
+INNER_EOF
+)
+# Define terminals with their execution commands
+# Format: "terminal_name:command_prefix"
+TERMINALS=(
+    "ptyxis:ptyxis --new-window -- bash -c"
+    "gnome-terminal:gnome-terminal --title=Commit\ Review -- bash -c"
+    "konsole:konsole --new-tab -e bash -c"
+    "xfce4-terminal:xfce4-terminal --title=Commit\ Review -e bash -c"
+    "mate-terminal:mate-terminal --title=Commit\ Review -e bash -c"
+    "lxterminal:lxterminal -t \"Commit Review\" -e bash -c"
+    "alacritty:alacritty -t \"Commit Review\" -e bash -c"
+    "kitty:kitty -T \"Commit Review\" bash -c"
+    "terminator:terminator -T \"Commit Review\" -e bash -c"
+    "tilix:tilix -t \"Commit Review\" -e bash -c"
+    "xterm:xterm -T \"Commit Review\" -e bash -c"
+)
+
+# Try each terminal
+TERMINAL_OPENED=false
+for entry in "${TERMINALS[@]}"; do
+    terminal_name="${entry%%:*}"
+    terminal_cmd="${entry#*:}"
+    
+    if command -v "$terminal_name" &>/dev/null; then
+        # Execute terminal - most GUI terminals fork and exit immediately
+        # so we can't reliably check if process is still running
+        $terminal_cmd "${PROMPT_SCRIPT}" 2>/dev/null &
+        sleep 0.5  # Give terminal time to start
+        TERMINAL_OPENED=true
+        break
+    fi
+done
+
+# If no terminal could be opened
+if [ "$TERMINAL_OPENED" = false ]; then
+    rm -f "$RESPONSE_FILE"
+    exit 2  # UNAVAILABLE
+fi
+
+# Wait for response file to be populated (with timeout)
+TIMEOUT=3600  # 60 minutes timeout
+ELAPSED=0
+while [ ! -s "$RESPONSE_FILE" ] && [ $ELAPSED -lt $TIMEOUT ]; do
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
+done
+
+# Check if timed out
+if [ ! -s "$RESPONSE_FILE" ]; then
+    rm -f "$RESPONSE_FILE"
+    echo "TIMEOUT - No response received"
+    exit 1  # REJECTED (timeout)
+fi
+
+# Read response
+response=$(cat "$RESPONSE_FILE" | tr -d '[:space:]')
+rm -f "$RESPONSE_FILE"
+
+# Handle response
+case "$response" in
+    y|Y)
+        echo "APPROVED"
+        exit 0  # APPROVED
+        ;;
+    *)
+        echo "REJECTED"
+        exit 1  # REJECTED
+        ;;
+esac

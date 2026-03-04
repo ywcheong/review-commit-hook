@@ -28,7 +28,7 @@ fi
 # Define strategies in order
 STRATEGIES=(
     "1-ubuntu-zenity"
-    "2-ubuntu-terminal"
+    "2-universal-terminal"
 )
 
 # Try each strategy in order

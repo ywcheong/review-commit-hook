@@ -40,13 +40,12 @@ This will:
    cp pre-commit-hook "${TARGET_DIR}/"
    cp request-review-to-user "${TARGET_DIR}/"
    cp strategy/1-ubuntu-zenity "${TARGET_DIR}/strategy/"
-   cp strategy/2-ubuntu-terminal "${TARGET_DIR}/strategy/"
+   cp strategy/2-universal-terminal "${TARGET_DIR}/strategy/"
    
    chmod +x "${TARGET_DIR}/pre-commit-hook"
    chmod +x "${TARGET_DIR}/request-review-to-user"
    chmod +x "${TARGET_DIR}/strategy/1-ubuntu-zenity"
-   chmod +x "${TARGET_DIR}/strategy/2-ubuntu-terminal"
-   ```
+   chmod +x "${TARGET_DIR}/strategy/2-universal-terminal"
 
 2. Create `.git/hooks/pre-commit` in your repository:
    ```bash
@@ -128,13 +127,11 @@ request-review-to-user
     │   │   └── Reject → exit 1
     │   └── Zenity unavailable → exit 2 (try next)
     │
-    ├── Try strategy/2-ubuntu-terminal
-    │   ├── TTY available → Show prompt
+    ├── Try strategy/2-universal-terminal
+    │   ├── GUI Terminal available → Open new window
     │   │   ├── y/Y → exit 0
     │   │   └── Other → exit 1
-    │   └── TTY unavailable → exit 2
-    │
-    └── All strategies unavailable → exit 0 (allow commit)
+    │   └── No GUI Terminal → exit 2
 ```
 
 ## File Structure
@@ -147,8 +144,7 @@ review-commit-hook/
 ├── request-review-to-user       # Strategy orchestrator
 └── strategy/
     ├── 1-ubuntu-zenity          # Zenity GUI strategy
-    └── 2-ubuntu-terminal        # Terminal prompt strategy
-```
+    └── 2-universal-terminal  # Universal GUI Terminal strategy
 
 ## Exit Code Convention
 
