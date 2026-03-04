@@ -1,0 +1,81 @@
+#!/bin/bash
+# request-review-to-user
+# Strategy orchestrator for commit review
+
+set -e
+
+HOOK_NAME="request-review-to-user"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STRATEGY_DIR="${SCRIPT_DIR}/strategy"
+
+# Log function
+log() {
+    echo "[${HOOK_NAME}] $1"
+}
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    log "Not in a git repository, skipping review"
+    exit 0
+fi
+
+# Check if there are staged changes
+if git diff --staged --quiet 2>/dev/null; then
+    log "No staged changes, skipping review"
+    exit 0
+fi
+
+# Define strategies in order
+STRATEGIES=(
+    "1-ubuntu-zenity"
+    "2-ubuntu-terminal"
+)
+
+# Try each strategy in order
+for strategy in "${STRATEGIES[@]}"; do
+    strategy_path="${STRATEGY_DIR}/${strategy}"
+    
+    # Check if strategy exists and is executable
+    if [ ! -x "$strategy_path" ]; then
+        if [ -f "$strategy_path" ]; then
+            chmod +x "$strategy_path"
+        else
+            log "Strategy not found: ${strategy}"
+            continue
+        fi
+    fi
+    
+    # Run strategy
+    set +e  # Temporarily disable exit on error to capture exit code
+    "$strategy_path"
+    strategy_exit_code=$?
+    set -e
+    
+    # Handle exit code
+    case $strategy_exit_code in
+        0)
+            # User approved
+            log "Commit approved by user (via ${strategy})"
+            exit 0
+            ;;
+        1)
+            # User rejected
+            log "Commit REJECT by user (via ${strategy}): Check unstaged changes for user's review comments, and modify your staged work!"    
+            exit 1
+            ;;
+        2)
+            # Strategy unavailable, try next
+            log "Strategy ${strategy} unavailable, trying next..."
+            continue
+            ;;
+        *)
+            # Unexpected exit code, try next
+            log "Unexpected exit code ${strategy_exit_code} from ${strategy}, trying next..."
+            continue
+            ;;
+    esac
+done
+
+# All strategies unavailable
+log "WARNING: All review strategies unavailable. Allowing commit to proceed."
+exit 0

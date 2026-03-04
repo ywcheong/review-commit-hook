@@ -1,0 +1,59 @@
+#!/bin/bash
+# 1-ubuntu-zenity
+# Zenity GUI strategy for commit review
+
+# Check if zenity is available
+if ! command -v zenity &>/dev/null; then
+    exit 2  # UNAVAILABLE
+fi
+
+# Check if GUI environment exists
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+    exit 2  # UNAVAILABLE
+fi
+
+# Get git info
+PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel)" 2>/dev/null || echo "Unknown Project")
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "Unknown Branch")
+
+# Get staged files summary
+STAGED_FILES=$(git diff --staged --name-only 2>/dev/null | head -20)
+STAGED_COUNT=$(git diff --staged --name-only 2>/dev/null | wc -l)
+
+# Build info text
+INFO_TEXT="<b>Project:</b> ${PROJECT_NAME}
+<b>Branch:</b> ${BRANCH_NAME}
+<b>Staged files:</b> ${STAGED_COUNT} file(s)
+
+<b>Files to be committed:</b>
+${STAGED_FILES}"
+
+# If more than 20 files, add note
+if [ "$STAGED_COUNT" -gt 20 ]; then
+    INFO_TEXT="${INFO_TEXT}
+
+... and $((STAGED_COUNT - 20)) more files"
+fi
+
+# Show zenity dialog
+# Don't use set -e here - we need to capture exit code
+zenity --question \
+    --title="Commit Review Request" \
+    --text="${INFO_TEXT}" \
+    --ok-label="Approve Commit" \
+    --cancel-label="Request Changes" \
+    --width=600 \
+    --height=400 \
+    2>/dev/null
+
+exit_code=$?
+
+if [ $exit_code -eq 0 ]; then
+    # User approved
+    echo "APPROVED"
+    exit 0  # APPROVED
+else
+    # User requested changes
+    echo "REJECTED"
+    exit 1  # REJECTED
+fi

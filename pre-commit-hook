@@ -1,0 +1,12 @@
+#!/bin/bash
+# pre-commit-hook
+# Entry point for .git/hooks/pre-commit
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -x "${SCRIPT_DIR}/request-review-to-user" ]; then
+    "${SCRIPT_DIR}/request-review-to-user"
+    exit $?
+fi
+
+exit 0
