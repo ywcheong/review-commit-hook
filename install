@@ -1,6 +1,7 @@
 #!/bin/bash
 # install
 # Installs the commit review hook into a git repository
+# Safe and idempotent: appends to existing hooks instead of replacing
 
 set -e
 
@@ -45,7 +46,7 @@ fi
 
 echo ""
 
-# Step 1: Install scripts
+# Step 1: Install scripts (idempotent - overwrites with same content)
 mkdir -p "${TARGET_DIR}/strategy"
 
 cp "${SCRIPT_DIR}/pre-commit-hook" "${TARGET_DIR}/pre-commit-hook"
@@ -60,34 +61,28 @@ chmod +x "${TARGET_DIR}/strategy/2-universal-terminal"
 echo -e "${GREEN}✓ Scripts installed to ${TARGET_DIR}${NC}"
 echo ""
 
-# Step 2: Set up pre-commit hook
+# Step 2: Set up pre-commit hook (idempotent)
 echo -e "${YELLOW}Step 2: Setting up pre-commit hook${NC}"
 
 PRE_COMMIT_HOOK="${HOOKS_DIR}/pre-commit"
+MARKER_BEGIN="# === Review Commit Hook BEGIN ==="
+MARKER_END="# === Review Commit Hook END ==="
 
 if [ -f "$PRE_COMMIT_HOOK" ]; then
-    # Check if it's already our hook
-    if grep -q "Review Commit Hook" "$PRE_COMMIT_HOOK" 2>/dev/null; then
-        echo -e "${GREEN}✓ Pre-commit hook already configured${NC}"
+    # Check if already installed (with same path)
+    if grep -qF "# INSTALL_PATH=${TARGET_DIR}" "$PRE_COMMIT_HOOK" 2>/dev/null; then
+        echo -e "${GREEN}✓ Pre-commit hook already configured (idempotent)${NC}"
+    elif grep -qF "$MARKER_BEGIN" "$PRE_COMMIT_HOOK" 2>/dev/null; then
+        # Different installation path exists
+        echo -e "${YELLOW}Hook installed at different path. Remove first to reinstall.${NC}"
+        grep "# INSTALL_PATH=" "$PRE_COMMIT_HOOK" || true
     else
-        # Backup existing hook and create new one that chains
-        BACKUP="${PRE_COMMIT_HOOK}.backup.$(date +%Y%m%d%H%M%S)"
-        mv "$PRE_COMMIT_HOOK" "$BACKUP"
-        echo -e "${YELLOW}Existing hook backed up to: ${BACKUP}${NC}"
-        
-        cat > "$PRE_COMMIT_HOOK" << HOOK_EOF
-#!/bin/bash
-# Review Commit Hook
-# INSTALL_PATH=${TARGET_DIR}
+        # Append our hook to existing script
+        cat >> "$PRE_COMMIT_HOOK" << HOOK_EOF
 
-# Run original hook if backup exists
-LATEST_BACKUP=\$(ls -t "\$(dirname "\$0")/pre-commit.backup."* 2>/dev/null | head -1)
-if [ -n "\$LATEST_BACKUP" ] && [ -x "\$LATEST_BACKUP" ]; then
-    "\$LATEST_BACKUP" "\$@"
-    if [ \$? -ne 0 ]; then
-        exit \$?
-    fi
-fi
+$MARKER_BEGIN
+# INSTALL_PATH=${TARGET_DIR}
+# Do not modify this block - managed by review-commit-hook
 
 # Run commit review (must be last)
 if [ -x "${TARGET_DIR}/pre-commit-hook" ]; then
@@ -96,16 +91,17 @@ if [ -x "${TARGET_DIR}/pre-commit-hook" ]; then
 fi
 
 exit 0
+$MARKER_END
 HOOK_EOF
-        chmod +x "$PRE_COMMIT_HOOK"
-        echo -e "${GREEN}✓ Pre-commit hook configured (chained with existing)${NC}"
+        echo -e "${GREEN}✓ Appended to existing pre-commit hook${NC}"
     fi
 else
     # Create new pre-commit hook
     cat > "$PRE_COMMIT_HOOK" << HOOK_EOF
 #!/bin/bash
-# Review Commit Hook
+$MARKER_BEGIN
 # INSTALL_PATH=${TARGET_DIR}
+# Do not modify this block - managed by review-commit-hook
 
 if [ -x "${TARGET_DIR}/pre-commit-hook" ]; then
     "${TARGET_DIR}/pre-commit-hook"
@@ -113,6 +109,7 @@ if [ -x "${TARGET_DIR}/pre-commit-hook" ]; then
 fi
 
 exit 0
+$MARKER_END
 HOOK_EOF
     chmod +x "$PRE_COMMIT_HOOK"
     echo -e "${GREEN}✓ Pre-commit hook created${NC}"

@@ -27,8 +27,12 @@ cd /path/to/your/git/repository
 This will:
 1. Ask for installation directory (default: `utility/hook/`)
 2. Install scripts to the specified directory
-3. Create or update `.git/hooks/pre-commit` in your repository
-4. Backup existing pre-commit hook if present
+3. Create or append to `.git/hooks/pre-commit` in your repository
+
+**Safe & Idempotent:**
+- If a pre-commit hook already exists, the review hook is appended to the end
+- Running install multiple times has no effect if already installed
+- Existing hook content is never modified or removed
 
 ### Manual Installation
 
@@ -100,9 +104,14 @@ Run the uninstall script from within a git repository:
 
 This will:
 1. Read the installation path from `.git/hooks/pre-commit`
-2. Remove all installed files
-3. Clean up empty directories
-4. Restore original pre-commit hook from backup (if exists)
+2. Remove only the review hook section (preserves other content)
+3. Remove installed script files
+4. Clean up empty directories
+
+**Safe & Idempotent:**
+- Only removes the review hook section, preserving any other hook content
+- Running uninstall multiple times has no effect if already uninstalled
+- If the hook contained only our content, the entire file is removed
 
 ## How It Works
 
